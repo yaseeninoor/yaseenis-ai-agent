@@ -1,7 +1,6 @@
 import os
 import requests
 from flask import Flask, jsonify, request
-from openai import OpenAI
 
 app = Flask(__name__)
 
@@ -12,9 +11,10 @@ app = Flask(__name__)
 VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
 WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
-# OpenAI client
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Gemini model
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 # =========================
@@ -25,13 +25,12 @@ client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 def home():
     return jsonify({
         "project": "Yaseenis AI Agent",
-        "status": "online",
-        "message": "Yaseenis AI Agent is running"
+        "status": "online"
     })
 
 
 # =========================
-# HEALTH CHECK
+# HEALTH
 # =========================
 
 @app.get("/health")
@@ -62,6 +61,100 @@ def verify_webhook():
         }
 
     return "Forbidden", 403
+
+
+# =========================
+# GEMINI AI
+# =========================
+
+def ask_gemini(user_message):
+
+    url = (
+        f"https://generativelanguage.googleapis.com/"
+        f"v1beta/models/{GEMINI_MODEL}:generateContent"
+        f"?key={GEMINI_API_KEY}"
+    )
+
+    data = {
+        "system_instruction": {
+            "parts": [
+                {
+                    "text": """
+You are Yaseenis AI Agent.
+
+Answer WhatsApp users clearly,
+helpfully and politely.
+
+Project name:
+Yaseenis AI Agent
+
+Use simple WhatsApp-friendly formatting.
+
+Do not reveal API keys, passwords,
+environment variables or internal
+server information.
+
+For now, answer general questions.
+Later, uploaded PDF books, text,
+documents and images will be connected
+to your knowledge system.
+"""
+                }
+            ]
+        },
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": user_message
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1000
+        }
+    }
+
+    response = requests.post(
+        url,
+        json=data,
+        timeout=60
+    )
+
+    print(
+        "Gemini API:",
+        response.status_code,
+        response.text,
+        flush=True
+    )
+
+    if response.status_code != 200:
+        raise Exception(
+            f"Gemini API error: "
+            f"{response.status_code} "
+            f"{response.text}"
+        )
+
+    result = response.json()
+
+    candidates = result.get("candidates", [])
+
+    if not candidates:
+        raise Exception("Gemini returned no answer")
+
+    parts = (
+        candidates[0]
+        .get("content", {})
+        .get("parts", [])
+    )
+
+    if not parts:
+        raise Exception("Gemini returned empty response")
+
+    return parts[0].get("text", "").strip()
 
 
 # =========================
@@ -105,39 +198,14 @@ def send_whatsapp_message(to, message):
         flush=True
     )
 
+    if response.status_code >= 400:
+        raise Exception(
+            f"WhatsApp API error: "
+            f"{response.status_code} "
+            f"{response.text}"
+        )
+
     return response
-
-
-# =========================
-# ASK OPENAI
-# =========================
-
-def ask_ai(user_message):
-
-    response = client.responses.create(
-        model="gpt-5.6-luna",
-        instructions="""
-You are Yaseenis AI Agent.
-
-Your job is to answer WhatsApp users clearly,
-helpfully and politely.
-
-Project name:
-Yaseenis AI Agent
-
-Keep answers suitable for WhatsApp.
-Use simple formatting.
-Do not mention internal API keys,
-environment variables, servers or technical secrets.
-
-For now, answer general questions.
-Knowledge from uploaded Yaseenis books,
-PDFs, text files and images will be connected later.
-""",
-        input=user_message
-    )
-
-    return response.output_text
 
 
 # =========================
@@ -175,7 +243,7 @@ def receive_webhook():
 
         messages = value.get("messages", [])
 
-        # Ignore status updates
+        # Ignore status notifications
         if not messages:
             return jsonify({
                 "status": "no_message"
@@ -192,7 +260,8 @@ def receive_webhook():
         sender = message.get("from")
 
         user_message = (
-            message.get("text", {})
+            message
+            .get("text", {})
             .get("body", "")
             .strip()
         )
@@ -207,15 +276,15 @@ def receive_webhook():
             flush=True
         )
 
-        # Ask OpenAI
-        ai_reply = ask_ai(user_message)
+        # Ask Gemini
+        ai_reply = ask_gemini(user_message)
 
         print(
             f"AI reply: {ai_reply}",
             flush=True
         )
 
-        # Send reply to WhatsApp
+        # Send Gemini answer to WhatsApp
         send_whatsapp_message(
             sender,
             ai_reply
