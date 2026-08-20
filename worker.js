@@ -297,7 +297,7 @@ async function askGemini(text, apiKey) {
   // MODEL
   // -------------------------------------------------------
 
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3.6-flash";
 
   const endpoint =
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
