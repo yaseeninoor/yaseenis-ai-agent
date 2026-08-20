@@ -1,0 +1,5 @@
+{
+  "name": "yaseenis-ai-agent",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-20"
+}
