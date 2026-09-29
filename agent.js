@@ -366,8 +366,8 @@ function escapeLike(value) {
 
 function cleanAnswer(text) {
   return String(text || "")
-    .replace(/^ASSISTANT\\s*:\\s*/i, "")
-    .replace(/^ANSWER\\s*:\\s*/i, "")
-    .replace(/^RESPONSE\\s*:\\s*/i, "")
+    .replace(/^ASSISTANT\s*:\s*/i, "")
+    .replace(/^ANSWER\s*:\s*/i, "")
+    .replace(/^RESPONSE\s*:\s*/i, "")
     .trim();
 }
