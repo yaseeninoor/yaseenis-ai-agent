@@ -234,7 +234,7 @@ async function searchKnowledge(env, query) {
   }
 
   try {
-    const like = `%\${escapeLike(query.slice(0, 120))}%`;
+    const like = `%${escapeLike(query.slice(0, 120))}%`;
     const result = await env.DB.prepare(
       `SELECT question, answer, source, category
        FROM knowledge
