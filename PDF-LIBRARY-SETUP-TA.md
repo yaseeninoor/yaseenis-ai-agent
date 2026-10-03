@@ -19,18 +19,11 @@
 - Secret/variable ADMIN_WHATSAPP_NUMBER: Admin WhatsApp number, country code உடன் digits மட்டும் (எ.கா. 9715XXXXXXX; + வேண்டாம்).
 - ஏற்கனவே உள்ள WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN அப்படியே இருக்க வேண்டும்.
 
-## 3. Connect the module to worker.js
-Add this import at the top:
-    import { handleLibraryHttp, handleLibraryMessage } from "./pdf-library.js";
-
-In fetch(request, env), after const url = new URL(request.url); add:
-    const libraryResponse = await handleLibraryHttp(request, env);
-    if (libraryResponse) return libraryResponse;
-
-In the POST /webhook route, after the message is extracted and before the existing non-text check, add:
-    if (message && await handleLibraryMessage(message, env, new URL(request.url).origin)) {
-      return new Response("EVENT_RECEIVED", { status: 200 });
-    }
+## 3. Deploy
+- இந்த branch-ல் worker.js ஏற்கனவே pdf-library.js-ஐ import செய்து WhatsApp webhook மற்றும் /library routes-க்கு இணைக்கப்பட்டுள்ளது.
+- Pull request-ஐ review செய்து merge செய்த பிறகு Worker deploy செய்யவும்.
+- WhatsApp webhook URL ஏற்கனவே /webhook என்றால் மாற்ற வேண்டாம்.
+- R2/D1 bindings மற்றும் ADMIN_WHATSAPP_NUMBER configure செய்த பிறகே feature இயங்கும்.
 
 ## 4. WhatsApp commands
 Admin:
