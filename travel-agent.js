@@ -100,7 +100,7 @@ async function callGemini(url, contents) {
       system_instruction: { parts: [{ text: SYSTEM }] },
       contents,
       tools: [{ functionDeclarations: DECLARATIONS }],
-      tool_config: { function_calling_config: { mode: "AUTO" } },
+      toolConfig: { functionCallingConfig: { mode: "AUTO" } },
       generationConfig: { temperature: 0.2, maxOutputTokens: 900 }
     })
   });
