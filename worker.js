@@ -1,8 +1,40 @@
-import { handleTravelMessage } from "./travel-agent.js";
+import { handleTravelMessage, searchFlights } from "./travel-agent.js";
+import { travelPage } from "./travel-site.js";
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // Public flight-search website
+    if (request.method === "GET" && url.pathname === "/travel") {
+      return new Response(travelPage, {
+        headers: {
+          "Content-Type": "text/html; charset=UTF-8",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff"
+        }
+      });
+    }
+
+    // Website flight-search API. Search only; this does not create a booking.
+    if (request.method === "POST" && url.pathname === "/api/flights") {
+      try {
+        const input = await request.json();
+        const result = await searchFlights(input, env);
+        return new Response(JSON.stringify(result), {
+          status: result?.error ? 400 : 200,
+          headers: {
+            "Content-Type": "application/json; charset=UTF-8",
+            "Cache-Control": "no-store"
+          }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error?.message || "Flight search failed" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json; charset=UTF-8", "Cache-Control": "no-store" }
+        });
+      }
+    }
 
     // =====================================================
     // HOME
