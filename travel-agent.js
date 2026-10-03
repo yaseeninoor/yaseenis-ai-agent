@@ -121,7 +121,7 @@ function createGoogleFlightsLink(args) {
   return "https://www.google.com/travel/flights?q=" + encodeURIComponent(query);
 }
 
-async function searchFlights(args, env) {
+export async function searchFlights(args, env) {
   const origin = String(args.origin || "").toUpperCase();
   const destination = String(args.destination || "").toUpperCase();
   const departureDate = validDate(args.departureDate);
