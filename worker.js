@@ -1,3 +1,5 @@
+import { handleTravelMessage } from "./travel-agent.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -214,11 +216,10 @@ export default {
           })
         );
 
-        const aiReply =
-          await askCloudflareAI(
-            userText,
-            env.AI
-          );
+        // Travel intent is handled by the travel tools first.
+        // Non-travel messages continue through the existing assistant.
+        const travelReply = await handleTravelMessage(userText, env);
+        const aiReply = travelReply || await askCloudflareAI(userText, env.AI);
 
         console.log(
           JSON.stringify({
