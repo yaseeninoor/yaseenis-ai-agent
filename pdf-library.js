@@ -107,6 +107,7 @@ export async function handleLibraryMessage(message, env, origin) {
     return true;
   }
 
+  const explicitSearch = /^(?:BOOK|SEARCH|புத்தகம்|தேடல்)\s*:/i.test(text);
   const query = text.replace(/^(?:BOOK|SEARCH|புத்தகம்|தேடல்)\s*:\s*/i, "").trim();
   if (query.length >= 2) {
     const result = await env.PDF_DB.prepare("SELECT id,title,kind,filename FROM library_items WHERE status='approved' AND (title LIKE ? OR filename LIKE ? OR note_text LIKE ?) ORDER BY created_at DESC LIMIT 5").bind("%"+query+"%","%"+query+"%","%"+query+"%").all();
@@ -114,6 +115,10 @@ export async function handleLibraryMessage(message, env, origin) {
     if (rows.length) {
       const response = "Yaseeni PDF Library - கிடைத்தவை:\n\n" + rows.map((r,i) => (i+1)+". "+r.title+" ("+(r.kind==="pdf"?"PDF புத்தகம்":r.kind==="image"?"Image":"Text note")+")\n"+origin+"/library/file?id="+encodeURIComponent(r.id)).join("\n\n") + "\n\nமேலும் புத்தகங்களுக்கு: " + origin + "/library";
       await sendText(from, response, env);
+      return true;
+    }
+    if (explicitSearch) {
+      await sendText(from, "இந்தப் பெயரில் அங்கீகரிக்கப்பட்ட புத்தகம் அல்லது கோப்பு கிடைக்கவில்லை. வேறு பெயரில் தேடவும்: " + origin + "/library", env);
       return true;
     }
   }
