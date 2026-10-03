@@ -157,6 +157,6 @@ async function sendText(to, body, env) {
   });
   if (!response.ok) throw new Error("WhatsApp send failed: " + response.status + " " + await response.text());
 }
-function safeFilename(value) { return String(value || "file").replace(/[\r\n"\\/]/g, "_").replace(/\.\./g, "_").slice(0,160) || "file"; }
+function safeFilename(value) { return String(value || "file").replace(/[\r\n"\\]/g, "_").replace(/\//g, "_").replace(/\.\./g, "_").slice(0,160) || "file"; }
 function digits(value) { return String(value || "").replace(/\D/g, ""); }
 function htmlEscape(value) { return String(value || "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
