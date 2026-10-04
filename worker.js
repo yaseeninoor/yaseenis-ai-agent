@@ -1,6 +1,11 @@
+import { handleLibraryHttp, handleLibraryMessage } from "./pdf-library.js";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    const libraryResponse = await handleLibraryHttp(request, env);
+    if (libraryResponse) return libraryResponse;
 
     // =====================================================
     // HOME
@@ -136,6 +141,14 @@ export default {
               status: 200
             }
           );
+        }
+
+        // -------------------------------------------------
+        // YASEENI PDF LIBRARY (files, notes, approvals, search)
+        // -------------------------------------------------
+
+        if (message && await handleLibraryMessage(message, env, new URL(request.url).origin)) {
+          return new Response("EVENT_RECEIVED", { status: 200 });
         }
 
         // -------------------------------------------------
