@@ -88,36 +88,88 @@ async function searchKnowledge(env, question) {
 }
 
 async function answerFromSources(env, question) {
-  const rows=await searchKnowledge(env,question);
-  if (!rows.length) return "மன்னிக்கவும். இந்த கேள்விக்கான தகவல் FM Store ஆதாரங்களில் கிடைக்கவில்லை.";
+  const rows = await searchKnowledge(env, question);
 
-  const sources=rows.map((r,i)=>
-    `[S${i+1}] File: ${r.file_path}${r.sheet_name ? " | Sheet: "+r.sheet_name : ""}${r.page_no ? " | Page: "+r.page_no : ""}\n${r.content}`
-  ).join("\n\n");
+  if (!rows.length) {
+    return "மன்னிக்கவும். இந்த கேள்விக்கான தகவல் FM Store ஆதாரங்களில் கிடைக்கவில்லை.";
+  }
 
-  const model=env.GEMINI_MODEL || "gemini-2.5-flash";
-  const endpoint=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`;
-  const prompt=`You are the FM Store WhatsApp AI assistant.
-Use ONLY the supplied source excerpts. Do not use outside knowledge and do not invent values.
-If the sources do not answer the question, say exactly:
-மன்னிக்கவும். இந்த கேள்விக்கான தகவல் FM Store ஆதாரங்களில் கிடைக்கவில்லை.
-For current stock, use only an authoritative current-stock source; never calculate stock from PR, PO, gate entry, reservation or material-document transactions.
-Answer in the user's language. Keep it concise. Include source citations such as [S1] at the end of factual statements.
+  const sources = rows.map((r, i) => {
+    const content = String(r.content || "");
+    const trimmed = content.length > 4500 ? content.slice(0, 4500) + "\\n[truncated]" : content;
+    return "[S" + (i + 1) + "] File: " + r.file_path +
+      (r.sheet_name ? " | Sheet: " + r.sheet_name : "") +
+      (r.page_no != null ? " | Page: " + r.page_no : "") +
+      (r.chunk_no != null ? " | Chunk: " + r.chunk_no : "") + "\\n" + trimmed;
+  }).join("\\n\\n");
 
-QUESTION:
-${question}
+  const prompt = [
+    "You are the FM Store ST26 WhatsApp AI assistant.",
+    "Answer naturally like a helpful LLM, but use ONLY the supplied source excerpts.",
+    "Never use outside knowledge or invent any value.",
+    "For CURRENT STOCK, use only the authoritative Current Stock source.",
+    "Never calculate current stock from PR, PO, reservation, gate entry, or material-document transactions.",
+    "Do not copy the whole Excel row. Extract only the fields needed.",
+    "If asking for stock, give material name/code, current stock quantity, UOM and storage location when available.",
+    "If multiple matches exist, list them clearly instead of guessing.",
+    "Answer in the same language as the user.",
+    "Keep the answer concise and useful.",
+    "Add [S1], [S2], etc. after factual statements.",
+    "If the sources do not support the answer, reply exactly: மன்னிக்கவும். இந்த கேள்விக்கான தகவல் FM Store ஆதாரங்களில் கிடைக்கவில்லை.",
+    "",
+    "QUESTION:",
+    question,
+    "",
+    "SOURCE EXCERPTS:",
+    sources
+  ].join("\\n");
 
-SOURCE EXCERPTS:
-${sources}`;
+  const models = [...new Set([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"].filter(Boolean))];
+  let lastError = null;
 
-  const resp=await fetch(endpoint,{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.1,maxOutputTokens:700}})
+  for (const model of models) {
+    try {
+      const answer = await callGemini(env, model, prompt);
+      if (answer) return answer.trim();
+    } catch (error) {
+      lastError = error;
+      console.error("GEMINI_MODEL_FAILED", JSON.stringify({model, error: error?.message || String(error)}));
+    }
+  }
+
+  console.error("ALL_GEMINI_MODELS_FAILED", lastError?.message || "unknown");
+  return "மன்னிக்கவும். AI பதில் தற்போது உருவாக்க முடியவில்லை. மீண்டும் முயற்சி செய்யவும்.";
+}
+
+async function callGemini(env, model, prompt) {
+  if (!env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is missing");
+
+  const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" +
+    encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(env.GEMINI_API_KEY);
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: "You are a grounded FM Store assistant. Use only the source excerpts supplied in the prompt. Never invent data." }]
+      },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 500 }
+    })
   });
-  const data=await resp.json();
-  if (!resp.ok) throw new Error("Gemini error: "+JSON.stringify(data));
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "AI response கிடைக்கவில்லை.";
+
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = null; }
+
+  if (!response.ok) {
+    throw new Error("Gemini " + model + ": " + (data?.error?.message || ("HTTP " + response.status)));
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts?.map(p => p?.text || "").join("").trim();
+  if (!text) throw new Error("Gemini " + model + ": empty response");
+  return text;
 }
 
 async function sendWhatsApp(env,to,message) {
